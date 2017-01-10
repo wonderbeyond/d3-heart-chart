@@ -1,0 +1,48 @@
+{
+  "name": "d3-heart-chart",
+  "version": "2.0.0",
+  "description": "d3 heart chart demo",
+  "main": "src/index.js",
+  "moduleRoots": [
+    "src"
+  ],
+  "scripts": {
+    "dev": "webpack-dev-server --config=webpack.config.js --progress --inline --host=0.0.0.0 --port=8088",
+    "production": "NODE_ENV=production webpack --bail --config=webpack.config.js --progress"
+  },
+  "author": "Wonderbeyond",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "babel-core": "^6.18.2",
+    "babel-loader": "^6.2.8",
+    "babel-plugin-transform-object-rest-spread": "^6.20.2",
+    "babel-preset-latest": "^6.16.0",
+    "css-loader": "^0.26.0",
+    "d3": "^4.4.1",
+    "extract-text-webpack-plugin": "^2.0.0-beta.4",
+    "file-loader": "^0.9.0",
+    "html-loader": "^0.4.4",
+    "html-webpack-plugin": "^2.24.1",
+    "moment": "^2.17.0",
+    "postcss-cssnext": "^2.8.0",
+    "postcss-mixins": "^5.4.0",
+    "postcss-simple-vars": "^3.0.0",
+    "postcss-smart-import": "^0.5.1",
+    "style-loader": "^0.13.1",
+    "vue": "^2.1.4",
+    "vue-loader": "^10.0.0",
+    "vue-resource": "^1.0.3",
+    "vue-router": "^2.0.3",
+    "vue-template-compiler": "^2.1.4",
+    "webpack": "^2.1.0-beta.27",
+    "webpack-dev-server": "^2.1.0-beta.11"
+  },
+  "babel": {
+    "presets": [
+      "latest"
+    ],
+    "plugins": [
+      "transform-object-rest-spread"
+    ]
+  }
+}
