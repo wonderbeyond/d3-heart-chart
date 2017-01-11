@@ -9,24 +9,16 @@ window.d3 = d3;
 export default {
     data() {
         return {
-            fullWidth: 396,
-            fullHeight: 240,
+            fullWidth: 716,
+            fullHeight: 360,
             margin: {
-                top: 20,
-                right: 15,
-                bottom: 20,
-                left: 15,
+                top: 40,
+                right: 60,
+                bottom: 40,
+                left: 30,
             },
-            xData: [0, 10, 30, 60, 70],
-            yData: [8, 7, 2, 10, 6],
-            timeSeries: [
-                0, 20, 20, 30, 30, 40, 40, 50, 50, 60, 60, 70, 70, 80, 80, 90, 90, 110,
-                110, 120, 120, 130, 130, 140, 140, 150, 150, 160, 160, 180, 180, 200,
-                200, 210, 210, 220, 220, 230, 230, 240],
-            intensitySeries: [
-                6, 6, 10, 10, 4, 4, 2, 2, 7, 7, 4, 4, 8, 8, 6, 6, 10, 10,
-                6, 6, 3, 3, 8, 8, 7, 7, 5, 5, 1, 1, 5, 5,
-                8, 8, 6, 6, 4, 4, 3, 3]
+            course: require('./course-test-data.json'),
+            activities: [],
         };
     },
     computed: {
@@ -42,6 +34,31 @@ export default {
     },
     methods: {
         draw() {
+            const xAxisMainFontSize = 16;
+            const xAxisMainTextDistance = 36;
+
+            const yAxisMainFontSize = 16;
+            const yAxisMainTextDistance = 20;
+
+            const dotNoteFontSize = 14;
+
+            // Data processing
+            var timeSeries = [0];
+            var intensitySeries = [];
+            var lineDots = [];
+            var durationCnt = 0;
+            this.course.units.forEach(unit => {
+                unit.activities.forEach(activity => {
+                    this.activities.push(activity);
+                    lineDots.push([durationCnt, activity.intensity]);
+                    durationCnt += activity.duration;
+                    timeSeries.push(durationCnt, durationCnt);
+                    intensitySeries.push(activity.intensity, activity.intensity);
+                });
+            });
+            intensitySeries.push(0);
+
+            // Drawing svg container
             var container = d3.select(this.$el).append('svg:svg')
                 .attr('class', 'chart container')
                 .attr('width', this.fullWidth)
@@ -53,30 +70,123 @@ export default {
                 .attr('height', this.softHeight);
 
             var timeScale = d3.scaleLinear()
-                .domain([0, d3.max(this.timeSeries)])
+                .domain([0, d3.max(timeSeries) + 10])
                 .range([0, this.softWidth]);
-
-            var timeAxis = d3.axisBottom(timeScale)
-                // .tickValues([0, 240])
-                ;
+            var timeAxis = d3.axisBottom(timeScale);
 
             var intensityScale = d3.scaleLinear()
-                .domain([0, d3.max(this.intensitySeries)])
-                .range([0, this.softHeight]);
+                .domain([0, d3.max(intensitySeries) + 1])
+                .range([this.softHeight, 0]);
 
+            var intensityAxis = d3.axisLeft(intensityScale);
+
+            // Drawing X axis
             main.append('svg:g')
                 .attr('transform', `translate(0, ${this.softHeight})`)
                 .attr('class', 'time axis')
                 .call(timeAxis);
+            main.append('svg:text')
+                .attr('class', 'x-axis-text main')
+                .attr('x', this.softWidth + xAxisMainTextDistance)
+                .attr('y', this.softHeight)
+                .attr('font-size', xAxisMainFontSize)
+                .text('时间');
+            main.append('svg:text')
+                .attr('class', 'x-axis-text second')
+                .attr('x', this.softWidth + xAxisMainTextDistance)
+                .attr('y', this.softHeight + xAxisMainFontSize)
+                .attr('font-size', xAxisMainFontSize * 0.6)
+                .text('（分钟）');
+
+            // Drawing Y axis
+            main.append('svg:g')
+                .attr('class', 'intensity axis')
+                .call(intensityAxis);
+            main.append('svg:text')
+                .attr('class', 'y-axis-text')
+                .attr('x', 0)
+                .attr('y', -yAxisMainTextDistance)
+                .attr('font-size', yAxisMainFontSize)
+                .text('刺激度');
+
+            // Drawing data line
+            var line = d3.line()
+                .x((d) => {
+                    return timeScale(d);
+                })
+                .y((d, i) => {
+                    return intensityScale(intensitySeries[i]);
+                });
+            main.append('svg:path')
+                // .transition()
+                // .delay(10)
+                .attr('class', 'data-line')
+                .attr('d', line(timeSeries));
+
+            // Drawing line dots
+            var gLineDots = main.append('svg:g')
+                .attr('class', 'line-dots');
+
+            var gDots = gLineDots.selectAll('dot')
+                .data(lineDots)
+                .enter()
+                .append('svg:g')
+                .attr('transform', (d) => {
+                    return `translate(${timeScale(d[0])}, ${intensityScale(d[1])})`;
+                })
+                .attr('class', 'dot-container');
+            gDots.append('svg:circle')
+                .attr('class', 'line-dot')
+                .attr('r', 3)
+                // .attr('cx', d => {
+                //     return timeScale(d[0]);
+                // })
+                // .attr('cy', (d) => {
+                //     return intensityScale(d[1]);
+                // });
+            gDots.append('svg:text')
+                .attr('class', 'dot-note')
+                .attr('font-size', dotNoteFontSize)
+                .attr('x', 0)
+                .attr('y', -5)
+                .text((d, i) => {
+                    var a = this.activities[i];
+                    return `${a.name}/${a.intensity}`;
+                });
         }
     }
 };
 </script>
 
 <style>
+$primary-color: #40ab56;
+$dot-note-color: $primary-color;
+
 .container {
     width: 100%;
-    height: 240px;
-    border: 1px dashed rgb(176, 185, 179);
+    min-height: 400px;
+}
+
+svg.chart {
+    & .x-axis-text,
+    & .y-axis-text {
+        fill: #333;
+        text-anchor: middle;
+    }
+    & .data-line {
+        stroke: $primary-color;
+        stroke-width: 1;
+        fill: none;
+    }
+    & .dot-container {
+        & .dot-note {
+            text-anchor: left;
+            fill: $dot-note-color;
+            font-weight: bold;
+        }
+    }
+    & .line-dot {
+        fill: #349a49;
+    }
 }
 </style>
