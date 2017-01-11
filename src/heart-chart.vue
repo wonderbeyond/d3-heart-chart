@@ -9,7 +9,7 @@ window.d3 = d3;
 export default {
     data() {
         return {
-            fullWidth: 716,
+            fullWidth: 800,
             fullHeight: 360,
             margin: {
                 top: 40,
@@ -19,6 +19,7 @@ export default {
             },
             course: require('./course-test-data.json'),
             activities: [],
+            timeSeries: [0],
         };
     },
     computed: {
@@ -40,19 +41,24 @@ export default {
             const yAxisMainFontSize = 16;
             const yAxisMainTextDistance = 20;
 
+            const unitIndicatorHeight = 40;
+
             const dotNoteFontSize = 14;
 
             // Data processing
-            var timeSeries = [0];
             var intensitySeries = [];
             var lineDots = [];
             var durationCnt = 0;
             this.course.units.forEach(unit => {
+                unit.start = durationCnt;
                 unit.activities.forEach(activity => {
+                    activity.start = durationCnt;
                     this.activities.push(activity);
                     lineDots.push([durationCnt, activity.intensity]);
                     durationCnt += activity.duration;
-                    timeSeries.push(durationCnt, durationCnt);
+                    activity.end = durationCnt;
+                    unit.end = durationCnt;
+                    this.timeSeries.push(durationCnt, durationCnt);
                     intensitySeries.push(activity.intensity, activity.intensity);
                 });
             });
@@ -67,12 +73,26 @@ export default {
                 .attr('transform', `translate(${this.margin.left}, ${this.margin.top})`)
                 .attr('class', 'main')
                 .attr('width', this.softWidth)
+                .attr('height', this.softHeight)
+                .style('pointer-events', 'all');
+            // Refer to: http://stackoverflow.com/questions/16918194/d3-js-mouseover-event-not-working-properly-on-svg-group
+            main.append('svg:rect')
+                .style('visibility', 'hidden')
+                .attr('class', 'invisible-rectangle-as-placeholder')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('width', this.softWidth)
                 .attr('height', this.softHeight);
 
             var timeScale = d3.scaleLinear()
-                .domain([0, d3.max(timeSeries) + 10])
+                .domain([0, d3.max(this.timeSeries) + 10])
                 .range([0, this.softWidth]);
             var timeAxis = d3.axisBottom(timeScale);
+            timeAxis.tickValues(d3.range(this.activities[0].start,
+                                         this.activities.slice(-1)[0].end + 0.001,
+                                         10));
+            timeAxis.tickFormat((d) => this.timeSeries.indexOf(d) >= 0?
+                                        d : '');
 
             var intensityScale = d3.scaleLinear()
                 .domain([0, d3.max(intensitySeries) + 1])
@@ -98,6 +118,42 @@ export default {
                 .attr('font-size', xAxisMainFontSize * 0.6)
                 .text('（分钟）');
 
+            // Drawing course unit indicator
+            var gUnitIndicator = main.append('svg:g')
+                .attr('class', 'course-unit-indicator')
+                .attr('transform', `translate(0, ${this.softHeight + 20})`)
+            var gUnitSection = gUnitIndicator
+                .selectAll('unit')
+                .data(this.course.units)
+                .enter()
+                .append('svg:g')
+                    .attr('class', 'unit-section')
+            gUnitSection.append('svg:text')
+                .attr('x', d => timeScale((d.start + d.end)/2))
+                .attr('y', unitIndicatorHeight/2)
+                .text(d => `单元${d.id}：${d.name}`)
+            var unitSepLine = d3.line();
+            gUnitSection.append('svg:path')
+                .attr('class', 'sep-line')
+                .attr('d', (d, i) => {
+                    return unitSepLine([
+                        [timeScale(d.start), 0],
+                        [timeScale(d.start), unitIndicatorHeight]
+                    ]);
+                });
+            gUnitSection
+                .filter((d, i) => {
+                    return i == this.course.units.length - 1;
+                })
+                .append('svg:path')
+                .attr('class', 'sep-line')
+                .attr('d', (d, i) => {
+                    return unitSepLine([
+                        [timeScale(d.end), 0],
+                        [timeScale(d.end), unitIndicatorHeight]
+                    ]);
+                });
+
             // Drawing Y axis
             main.append('svg:g')
                 .attr('class', 'intensity axis')
@@ -121,7 +177,7 @@ export default {
                 // .transition()
                 // .delay(10)
                 .attr('class', 'data-line')
-                .attr('d', line(timeSeries));
+                .attr('d', line(this.timeSeries));
 
             // Drawing line dots
             var gLineDots = main.append('svg:g')
@@ -153,6 +209,11 @@ export default {
                     var a = this.activities[i];
                     return `${a.name}/${a.intensity}`;
                 });
+
+            // Dots clickable
+            main.on('click', function() {
+                console.log('C:', this)
+            })
         }
     }
 };
@@ -173,6 +234,18 @@ svg.chart {
         fill: #333;
         text-anchor: middle;
     }
+    & .course-unit-indicator {
+        & text {
+            alignment-baseline: central;
+            text-anchor: middle;
+            fill: #333;
+            font-size: 14px;
+        }
+        & .sep-line {
+            stroke: #000;
+            stroke-dasharray: 3,2;
+        }
+    }
     & .data-line {
         stroke: $primary-color;
         stroke-width: 1;
@@ -180,7 +253,7 @@ svg.chart {
     }
     & .dot-container {
         & .dot-note {
-            text-anchor: left;
+            text-anchor: start;
             fill: $dot-note-color;
             font-weight: bold;
         }
