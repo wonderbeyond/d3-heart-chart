@@ -216,17 +216,11 @@ export default {
                 .attr('class', 'dot-container');
             gDots.append('svg:circle')
                 .attr('class', 'line-dot')
-                .attr('r', 3)
-                // .attr('cx', d => {
-                //     return timeScale(d[0]);
-                // })
-                // .attr('cy', (d) => {
-                //     return intensityScale(d[1]);
-                // });
+                .attr('r', 3);
             gDots.append('svg:text')
                 .attr('class', 'dot-note')
                 .attr('font-size', dotNoteFontSize)
-                .attr('x', 0)
+                .attr('x', 0)    // Maybe we need moving left slightly!
                 .attr('y', -5)
                 .text((d, i) => {
                     var a = this.activities[i];
@@ -287,14 +281,15 @@ svg.chart {
         fill: none;
     }
     & .dot-container {
+        & .line-dot {
+            fill: $dot-circle-color;
+        }
         & .dot-note {
             text-anchor: start;
             fill: $dot-note-color;
             font-weight: bold;
+            font-family: 'Open Sans', Arial, Helvetica, sans-serif;;
         }
-    }
-    & .line-dot {
-        fill: $dot-circle-color;
     }
 }
 </style>
