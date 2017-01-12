@@ -4,7 +4,7 @@
 
 <script>
 import {min, max, range} from 'd3-array';
-import {select as d3Select} from 'd3-selection';
+import {select as d3Select, mouse as d3Mouse} from 'd3-selection';
 import 'd3-selection-multi';
 import {scaleLinear as d3ScaleLinear} from 'd3-scale';
 import {axisLeft as d3AxisLeft, axisBottom as d3AxisBottom} from 'd3-axis';
@@ -229,7 +229,7 @@ export default {
 
             // Dots clickable
             main.on('click', function() {
-                console.log('C:', this)
+                console.log('C:', d3Mouse(this))
             })
         }
     }
