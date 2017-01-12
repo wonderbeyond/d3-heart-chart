@@ -24,9 +24,17 @@ export default {
             course: require('./course-test-data.json'),
             activities: [],
             timeSeries: [0],
+            intensitySeries: [],
+            lineDots: [],
         };
     },
     computed: {
+        maxIntensity() {
+            return max(this.intensitySeries);
+        },
+        maxIntensityActivities() {
+            return this.activities.filter(d => d.intensity == this.maxIntensity);
+        },
         softWidth() {
             return this.fullWidth - this.margin.left - this.margin.right;
         },
@@ -50,23 +58,21 @@ export default {
             const dotNoteFontSize = 14;
 
             // Data processing
-            var intensitySeries = [];
-            var lineDots = [];
             var durationCnt = 0;
             this.course.units.forEach(unit => {
                 unit.start = durationCnt;
                 unit.activities.forEach(activity => {
                     activity.start = durationCnt;
                     this.activities.push(activity);
-                    lineDots.push([durationCnt, activity.intensity]);
+                    this.lineDots.push([durationCnt, activity.intensity]);
                     durationCnt += activity.duration;
                     activity.end = durationCnt;
                     unit.end = durationCnt;
                     this.timeSeries.push(durationCnt, durationCnt);
-                    intensitySeries.push(activity.intensity, activity.intensity);
+                    this.intensitySeries.push(activity.intensity, activity.intensity);
                 });
             });
-            intensitySeries.push(0);
+            this.intensitySeries.push(0);
 
             // Drawing svg container
             var container = d3Select(this.$el).append('svg:svg')
@@ -78,15 +84,6 @@ export default {
                 .attr('class', 'main')
                 .attr('width', this.softWidth)
                 .attr('height', this.softHeight)
-                .style('pointer-events', 'all');
-            // Refer to: http://stackoverflow.com/questions/16918194/d3-js-mouseover-event-not-working-properly-on-svg-group
-            main.append('svg:rect')
-                .style('visibility', 'hidden')
-                .attr('class', 'invisible-rectangle-as-placeholder')
-                .attr('x', 0)
-                .attr('y', 0)
-                .attr('width', this.softWidth)
-                .attr('height', this.softHeight);
 
             var timeScale = d3ScaleLinear()
                 .domain([0, max(this.timeSeries) + 10])
@@ -99,7 +96,7 @@ export default {
                                         d : '');
 
             var intensityScale = d3ScaleLinear()
-                .domain([0, max(intensitySeries) + 1])
+                .domain([0, max(this.intensitySeries) + 1])
                 .range([this.softHeight, 0]);
 
             var intensityAxis = d3AxisLeft(intensityScale);
@@ -194,7 +191,7 @@ export default {
                     return timeScale(d);
                 })
                 .y((d, i) => {
-                    return intensityScale(intensitySeries[i]);
+                    return intensityScale(this.intensitySeries[i]);
                 });
             main.append('svg:path')
                 // .transition()
@@ -202,21 +199,51 @@ export default {
                 .attr('class', 'data-line')
                 .attr('d', line(this.timeSeries));
 
+            // Drawing track container
+            // Refer to: http://stackoverflow.com/questions/16918194/d3-js-mouseover-event-not-working-properly-on-svg-group
+            var trackArea = main.append('svg:g')
+                .attr('class', 'track-area')
+                .style('pointer-events', 'all');
+            trackArea.append('svg:rect')
+                .style('visibility', 'hidden')
+                .attr('class', 'invisible-rectangle-as-placeholder')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('width', this.softWidth)
+                .attr('height', this.softHeight);
+
+            // Dots selectable
+            trackArea.on('click', () => {
+                var clickX = d3Mouse(trackArea.node())[0];
+                var xValues = this.lineDots.map(d => timeScale(d[0]));
+                var deltas = xValues.map(d => {
+                    return Math.abs(clickX - d);
+                });
+                var closest = deltas.indexOf(min(deltas));
+                console.log('Clicked:', this.activities[closest].name);
+                gDots.classed('active', (d, i) => {
+                    return i === closest;
+                });
+            })
+
             // Drawing line dots
-            var gLineDots = main.append('svg:g')
+            var gLineDots = trackArea.append('svg:g')
                 .attr('class', 'line-dots');
 
             var gDots = gLineDots.selectAll('dot')
-                .data(lineDots)
+                .data(this.lineDots)
                 .enter()
                 .append('svg:g')
                 .attr('transform', (d) => {
                     return `translate(${timeScale(d[0])}, ${intensityScale(d[1])})`;
                 })
-                .attr('class', 'dot-container');
+                .attr('class', 'dot-container')
+                .classed('active', (d, i) => {
+                    // Activate first top value
+                    return this.maxIntensityActivities[0].start == d[0];
+                });
             gDots.append('svg:circle')
                 .attr('class', 'line-dot')
-                .attr('r', 3);
             gDots.append('svg:text')
                 .attr('class', 'dot-note')
                 .attr('font-size', dotNoteFontSize)
@@ -226,11 +253,6 @@ export default {
                     var a = this.activities[i];
                     return `${a.name}/${a.intensity}`;
                 });
-
-            // Dots clickable
-            main.on('click', function() {
-                console.log('C:', d3Mouse(this))
-            })
         }
     }
 };
@@ -275,6 +297,9 @@ svg.chart {
             stroke-dasharray: 3,2;
         }
     }
+    & .track-area {
+        cursor: crosshair;
+    }
     & .data-line {
         stroke: $primary-color;
         stroke-width: 1;
@@ -282,9 +307,19 @@ svg.chart {
     }
     & .dot-container {
         & .line-dot {
+            r: 2;
             fill: $dot-circle-color;
         }
+        &.active .line-dot {
+            r: 3;
+            fill: $dot-circle-color;
+        }
+
         & .dot-note {
+            visibility: hidden;
+        }
+        &.active .dot-note {
+            visibility: visible;
             text-anchor: start;
             fill: $dot-note-color;
             font-weight: bold;
