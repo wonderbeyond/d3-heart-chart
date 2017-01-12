@@ -4,11 +4,16 @@
 
 <script>
 import {min, max, range} from 'd3-array';
-import {select as d3Select, mouse as d3Mouse} from 'd3-selection';
+import {
+    select as d3Select,
+    mouse as d3Mouse,
+    event as d3Event,
+} from 'd3-selection';
 import 'd3-selection-multi';
 import {scaleLinear as d3ScaleLinear} from 'd3-scale';
 import {axisLeft as d3AxisLeft, axisBottom as d3AxisBottom} from 'd3-axis';
 import {line as d3Line} from 'd3-shape';
+import {drag as d3Drag} from 'd3-drag';
 
 export default {
     data() {
@@ -79,6 +84,31 @@ export default {
                 .attr('class', 'chart container')
                 .attr('width', this.fullWidth)
                 .attr('height', this.fullHeight);
+            var zoomer = container.append('svg:g')
+                .attrs({
+                    class: 'zoomer',
+                    transform: `translate(${this.fullWidth - 100}, ${this.margin.top})`,
+                });
+            zoomer.append('svg:line')
+                .attrs({
+                    class: 'zoomer-line',
+                    x1: 0,
+                    x2: 100,
+                    y1: 0, y2: 0,
+                });
+            var drag = d3Drag()
+                .on('drag', function(d, i) {
+                    this.x = (this.x || 0) + d3Event.dx;
+                    this.y = (this.y || 0);
+                    d3Select(this).attr("transform", function(d,i){
+                        return "translate(" + [ this.x, this.y ] + ")";
+                    });
+                });
+            zoomer.append('svg:circle')
+                .attrs({
+                    class: 'zoomer-cursor'
+                }).call(drag);
+
             var main = container.append('svg:g')
                 .attr('transform', `translate(${this.margin.left}, ${this.margin.top})`)
                 .attr('class', 'main')
@@ -271,6 +301,15 @@ $mark-text-color: #333;
 }
 
 svg.chart {
+    & .zoomer {
+        & .zoomer-line {
+            stroke: #000;
+        }
+        & .zoomer-cursor {
+            r: 6;
+            fill: #333;
+        }
+    }
     & .x-axis-text,
     & .y-axis-text {
         fill: $mark-text-color;
