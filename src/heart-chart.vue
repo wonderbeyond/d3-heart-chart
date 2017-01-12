@@ -307,7 +307,7 @@ svg.chart {
     }
     & .dot-container {
         & .line-dot {
-            r: 2;
+            r: 1.5;
             fill: $dot-circle-color;
         }
         &.active .line-dot {
