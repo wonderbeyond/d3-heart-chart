@@ -39,6 +39,7 @@ var config = {
         }]
     },
     resolve: {
+        mainFields: ["browser", "module", "jsnext:main", "main"],
         modules: [
             'src',
             'node_modules',

@@ -3,9 +3,13 @@
 </template>
 
 <script>
-var d3 = require('d3');
+import {min, max, range} from 'd3-array';
+import {select as d3Select} from 'd3-selection';
+import 'd3-selection-multi';
+import {scaleLinear as d3ScaleLinear} from 'd3-scale';
+import {axisLeft as d3AxisLeft, axisBottom as d3AxisBottom} from 'd3-axis';
+import {line as d3Line} from 'd3-shape';
 
-window.d3 = d3;
 export default {
     data() {
         return {
@@ -65,7 +69,7 @@ export default {
             intensitySeries.push(0);
 
             // Drawing svg container
-            var container = d3.select(this.$el).append('svg:svg')
+            var container = d3Select(this.$el).append('svg:svg')
                 .attr('class', 'chart container')
                 .attr('width', this.fullWidth)
                 .attr('height', this.fullHeight);
@@ -84,21 +88,21 @@ export default {
                 .attr('width', this.softWidth)
                 .attr('height', this.softHeight);
 
-            var timeScale = d3.scaleLinear()
-                .domain([0, d3.max(this.timeSeries) + 10])
+            var timeScale = d3ScaleLinear()
+                .domain([0, max(this.timeSeries) + 10])
                 .range([0, this.softWidth]);
-            var timeAxis = d3.axisBottom(timeScale);
-            timeAxis.tickValues(d3.range(this.activities[0].start,
+            var timeAxis = d3AxisBottom(timeScale);
+            timeAxis.tickValues(range(this.activities[0].start,
                                          this.activities.slice(-1)[0].end + 0.001,
                                          10));
             timeAxis.tickFormat((d) => this.timeSeries.indexOf(d) >= 0?
                                         d : '');
 
-            var intensityScale = d3.scaleLinear()
-                .domain([0, d3.max(intensitySeries) + 1])
+            var intensityScale = d3ScaleLinear()
+                .domain([0, max(intensitySeries) + 1])
                 .range([this.softHeight, 0]);
 
-            var intensityAxis = d3.axisLeft(intensityScale);
+            var intensityAxis = d3AxisLeft(intensityScale);
 
             // Drawing X axis
             main.append('svg:g')
@@ -121,21 +125,40 @@ export default {
             // Drawing course unit indicator
             var gUnitIndicator = main.append('svg:g')
                 .attr('class', 'course-unit-indicator')
-                .attr('transform', `translate(0, ${this.softHeight + 20})`)
+                .attr('transform', `translate(0, ${this.softHeight + 20})`);
             var gUnitSection = gUnitIndicator
                 .selectAll('unit')
                 .data(this.course.units)
                 .enter()
-                .append('svg:g')
-                    .attr('class', 'unit-section')
-            gUnitSection.append('svg:text')
+                .append('svg:g').attr('class', 'unit');
+            gUnitSection.append('svg:line')
+                .attrs({
+                    class: 'area-line',
+                    x1: d => timeScale(d.start),
+                    y1: unitIndicatorHeight/2,
+                    x2: d => timeScale(d.end),
+                    y2: unitIndicatorHeight/2,
+                });
+            var unitNameBBoxes = [];
+            var gUnitNameText = gUnitSection.append('svg:text')
+                .attr('class', 'unit-name')
                 .attr('x', d => timeScale((d.start + d.end)/2))
                 .attr('y', unitIndicatorHeight/2)
                 .text(d => `单元${d.id}：${d.name}`)
-            var unitSepLine = d3.line();
+                .each(function() {
+                    unitNameBBoxes.push(this.getBBox());
+                });
+            gUnitSection.insert('svg:rect', 'text')
+                .attr('class', 'unit-name-border-box')
+                .attr('x', (d, i) => unitNameBBoxes[i].x - 2)
+                .attr('y', (d, i) => unitNameBBoxes[i].y)
+                .attr('width', (d, i) => unitNameBBoxes[i].width + 4)
+                .attr('height', (d, i) => unitNameBBoxes[i].height);
+
+            var unitSepLine = d3Line();
             gUnitSection.append('svg:path')
                 .attr('class', 'sep-line')
-                .attr('d', (d, i) => {
+                .attr('d', (d) => {
                     return unitSepLine([
                         [timeScale(d.start), 0],
                         [timeScale(d.start), unitIndicatorHeight]
@@ -147,7 +170,7 @@ export default {
                 })
                 .append('svg:path')
                 .attr('class', 'sep-line')
-                .attr('d', (d, i) => {
+                .attr('d', (d) => {
                     return unitSepLine([
                         [timeScale(d.end), 0],
                         [timeScale(d.end), unitIndicatorHeight]
@@ -166,7 +189,7 @@ export default {
                 .text('刺激度');
 
             // Drawing data line
-            var line = d3.line()
+            var line = d3Line()
                 .x((d) => {
                     return timeScale(d);
                 })
@@ -222,6 +245,9 @@ export default {
 <style>
 $primary-color: #40ab56;
 $dot-note-color: $primary-color;
+$dot-circle-color: #349a49;
+$mark-line-color: #000;
+$mark-text-color: #333;
 
 .container {
     width: 100%;
@@ -231,18 +257,27 @@ $dot-note-color: $primary-color;
 svg.chart {
     & .x-axis-text,
     & .y-axis-text {
-        fill: #333;
+        fill: $mark-text-color;
         text-anchor: middle;
     }
     & .course-unit-indicator {
+        & .area-line {
+            stroke: $mark-line-color;
+            stroke-width: 1;
+        }
         & text {
             alignment-baseline: central;
             text-anchor: middle;
-            fill: #333;
+            fill: $mark-text-color;
             font-size: 14px;
         }
+        & .unit-name-border-box {
+            /*stroke: #CCC;*/
+            fill: #FFF;
+            fill-opacity: 1;
+        }
         & .sep-line {
-            stroke: #000;
+            stroke: $mark-line-color;
             stroke-dasharray: 3,2;
         }
     }
@@ -259,7 +294,7 @@ svg.chart {
         }
     }
     & .line-dot {
-        fill: #349a49;
+        fill: $dot-circle-color;
     }
 }
 </style>
