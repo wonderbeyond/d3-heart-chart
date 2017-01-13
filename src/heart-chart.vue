@@ -11,7 +11,8 @@
 
 <script>
 import Vue from 'vue';
-import {min, max, range} from 'd3-array';
+import {min, max, merge, range} from 'd3-array';
+import {set} from 'd3-collection';
 import {
     select as d3Select,
     mouse as d3Mouse,
@@ -42,6 +43,12 @@ export default {
             timeSeries: [],
             intensitySeries: [],
             lineDots: [],
+            transformOptions: {
+                zoomRate: 1,
+                showTickStart: 0,
+                showTickCount: null,
+                showTicks: null,
+            },
         };
     },
     computed: {
@@ -67,7 +74,11 @@ export default {
         }
     },
     created() {
-        this.course = require('./course-test-data.json');
+        // this.course = require('./course-test-data.json');
+        this.$http.get(`http://demo.91jianke.com:1082/api/v2.0/activity-design/cardiograph/585b8c3857dccb66705f0bed`)
+            .then(resp => {
+                this.course = resp.body.data;
+            });
     },
     methods: {
         digestData() {
@@ -107,7 +118,7 @@ export default {
 
             // Drawing svg container
             var container = d3Select(this.$el).select('svg.chart.container');
-            var zoomer = container.select('.zoomer')
+            var zoomer = container.select('.zoomer');
             zoomer.append('svg:line')
                 .attrs({
                     class: 'zoomer-line',
@@ -139,10 +150,12 @@ export default {
                 .domain([0, max(this.timeSeries) + 10])
                 .range([0, this.softWidth]);
             var timeAxis = d3AxisBottom(timeScale);
-            timeAxis.tickValues(range(this.activities[0].start,
-                                         this.activities.slice(-1)[0].end + 0.001,
-                                         10));
-            timeAxis.tickFormat((d) => this.timeSeries.indexOf(d) >= 0?
+            var tickValues = set(merge([
+                this.timeSeries,
+                // range(this.activities[0].start, this.activities.slice(-1)[0].end + 0.001, 10)
+            ])).values();
+            timeAxis.tickValues(tickValues);
+            timeAxis.tickFormat((d) => tickValues.indexOf(d) >= 0?
                                         d : '');
 
             var intensityScale = d3ScaleLinear()
@@ -191,7 +204,7 @@ export default {
                 .attr('class', 'unit-name')
                 .attr('x', d => timeScale((d.start + d.end)/2))
                 .attr('y', unitIndicatorHeight/2)
-                .text(d => `单元${d.id}：${d.name}`)
+                .text(d => `${d.name}`)
                 .each(function() {
                     unitNameBBoxes.push(this.getBBox());
                 });
