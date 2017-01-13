@@ -3,6 +3,7 @@
 </template>
 
 <script>
+import Vue from 'vue';
 import {min, max, range} from 'd3-array';
 import {
     select as d3Select,
@@ -26,7 +27,10 @@ export default {
                 bottom: 40,
                 left: 30,
             },
-            course: require('./course-test-data.json'),
+            course: {
+                name: '',
+                units: [],
+            },
             activities: [],
             timeSeries: [0],
             intensitySeries: [],
@@ -47,22 +51,20 @@ export default {
             return this.fullHeight - this.margin.top - this.margin.bottom;
         }
     },
-    mounted() {
-        this.draw();
+    watch: {
+        course() {
+            this.digestData();
+            Vue.nextTick(() => {
+                this.draw();
+            });
+        }
+    },
+    created() {
+        this.course = require('./course-test-data.json');
     },
     methods: {
-        draw() {
-            const xAxisMainFontSize = 16;
-            const xAxisMainTextDistance = 36;
-
-            const yAxisMainFontSize = 16;
-            const yAxisMainTextDistance = 20;
-
-            const unitIndicatorHeight = 40;
-
-            const dotNoteFontSize = 14;
-
-            // Data processing
+        digestData() {
+            console.info('Digesting data');
             var durationCnt = 0;
             this.course.units.forEach(unit => {
                 unit.start = durationCnt;
@@ -78,6 +80,17 @@ export default {
                 });
             });
             this.intensitySeries.push(0);
+        },
+        draw() {
+            const xAxisMainFontSize = 16;
+            const xAxisMainTextDistance = 36;
+
+            const yAxisMainFontSize = 16;
+            const yAxisMainTextDistance = 20;
+
+            const unitIndicatorHeight = 40;
+
+            const dotNoteFontSize = 14;
 
             // Drawing svg container
             var container = d3Select(this.$el).append('svg:svg')
@@ -97,11 +110,11 @@ export default {
                     y1: 0, y2: 0,
                 });
             var drag = d3Drag()
-                .on('drag', function(d, i) {
+                .on('drag', function() {
                     this.x = (this.x || 0) + d3Event.dx;
                     this.y = (this.y || 0);
-                    d3Select(this).attr("transform", function(d,i){
-                        return "translate(" + [ this.x, this.y ] + ")";
+                    d3Select(this).attr('transform', function(){
+                        return `translate(${this.x}, ${this.y})`;
                     });
                 });
             zoomer.append('svg:circle')
@@ -113,7 +126,7 @@ export default {
                 .attr('transform', `translate(${this.margin.left}, ${this.margin.top})`)
                 .attr('class', 'main')
                 .attr('width', this.softWidth)
-                .attr('height', this.softHeight)
+                .attr('height', this.softHeight);
 
             var timeScale = d3ScaleLinear()
                 .domain([0, max(this.timeSeries) + 10])
