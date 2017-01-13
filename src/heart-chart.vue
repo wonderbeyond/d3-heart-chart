@@ -1,5 +1,12 @@
 <template>
-  <div class="container"></div>
+  <div class="container">
+      <svg class="chart container" :width="fullWidth" :height="fullHeight">
+          <g class="zoomer" :transform="`translate(${fullWidth - 100}, ${margin.top})`"></g>
+          <g class="main">
+              <g class="zoomable-view"></g>
+          </g>
+      </svg>
+  </div>
 </template>
 
 <script>
@@ -32,7 +39,7 @@ export default {
                 units: [],
             },
             activities: [],
-            timeSeries: [0],
+            timeSeries: [],
             intensitySeries: [],
             lineDots: [],
         };
@@ -65,6 +72,11 @@ export default {
     methods: {
         digestData() {
             console.info('Digesting data');
+            this.activities = [];
+            this.timeSeries = [];
+            this.intensitySeries = [];
+            this.lineDots = [];
+
             var durationCnt = 0;
             this.course.units.forEach(unit => {
                 unit.start = durationCnt;
@@ -75,10 +87,11 @@ export default {
                     durationCnt += activity.duration;
                     activity.end = durationCnt;
                     unit.end = durationCnt;
-                    this.timeSeries.push(durationCnt, durationCnt);
+                    this.timeSeries.push(activity.start, activity.end);
                     this.intensitySeries.push(activity.intensity, activity.intensity);
                 });
             });
+            this.timeSeries.push(durationCnt);
             this.intensitySeries.push(0);
         },
         draw() {
@@ -93,15 +106,8 @@ export default {
             const dotNoteFontSize = 14;
 
             // Drawing svg container
-            var container = d3Select(this.$el).append('svg:svg')
-                .attr('class', 'chart container')
-                .attr('width', this.fullWidth)
-                .attr('height', this.fullHeight);
-            var zoomer = container.append('svg:g')
-                .attrs({
-                    class: 'zoomer',
-                    transform: `translate(${this.fullWidth - 100}, ${this.margin.top})`,
-                });
+            var container = d3Select(this.$el).select('svg.chart.container');
+            var zoomer = container.select('.zoomer')
             zoomer.append('svg:line')
                 .attrs({
                     class: 'zoomer-line',
@@ -122,11 +128,12 @@ export default {
                     class: 'zoomer-cursor'
                 }).call(drag);
 
-            var main = container.append('svg:g')
+            var main = container.select('.main')
                 .attr('transform', `translate(${this.margin.left}, ${this.margin.top})`)
                 .attr('class', 'main')
                 .attr('width', this.softWidth)
                 .attr('height', this.softHeight);
+            var gZoomable = main.select('g.zoomable-view');
 
             var timeScale = d3ScaleLinear()
                 .domain([0, max(this.timeSeries) + 10])
@@ -145,17 +152,17 @@ export default {
             var intensityAxis = d3AxisLeft(intensityScale);
 
             // Drawing X axis
-            main.append('svg:g')
+            gZoomable.append('svg:g')
                 .attr('transform', `translate(0, ${this.softHeight})`)
                 .attr('class', 'time axis')
                 .call(timeAxis);
-            main.append('svg:text')
+            gZoomable.append('svg:text')
                 .attr('class', 'x-axis-text main')
                 .attr('x', this.softWidth + xAxisMainTextDistance)
                 .attr('y', this.softHeight)
                 .attr('font-size', xAxisMainFontSize)
                 .text('时间');
-            main.append('svg:text')
+            gZoomable.append('svg:text')
                 .attr('class', 'x-axis-text second')
                 .attr('x', this.softWidth + xAxisMainTextDistance)
                 .attr('y', this.softHeight + xAxisMainFontSize)
@@ -163,7 +170,7 @@ export default {
                 .text('（分钟）');
 
             // Drawing course unit indicator
-            var gUnitIndicator = main.append('svg:g')
+            var gUnitIndicator = gZoomable.append('svg:g')
                 .attr('class', 'course-unit-indicator')
                 .attr('transform', `translate(0, ${this.softHeight + 20})`);
             var gUnitSection = gUnitIndicator
@@ -236,7 +243,7 @@ export default {
                 .y((d, i) => {
                     return intensityScale(this.intensitySeries[i]);
                 });
-            main.append('svg:path')
+            gZoomable.append('svg:path')
                 // .transition()
                 // .delay(10)
                 .attr('class', 'data-line')
@@ -244,7 +251,7 @@ export default {
 
             // Drawing track container
             // Refer to: http://stackoverflow.com/questions/16918194/d3-js-mouseover-event-not-working-properly-on-svg-group
-            var trackArea = main.append('svg:g')
+            var trackArea = gZoomable.append('svg:g')
                 .attr('class', 'track-area')
                 .style('pointer-events', 'all');
             trackArea.append('svg:rect')
@@ -270,7 +277,7 @@ export default {
             })
 
             // Drawing line dots
-            var gLineDots = trackArea.append('svg:g')
+            var gLineDots = gZoomable.append('svg:g')
                 .attr('class', 'line-dots');
 
             var gDots = gLineDots.selectAll('dot')
