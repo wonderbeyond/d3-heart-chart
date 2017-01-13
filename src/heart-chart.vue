@@ -376,14 +376,20 @@ svg.chart {
 
         & .dot-note {
             visibility: hidden;
-        }
-        &.active .dot-note {
-            visibility: visible;
             text-anchor: start;
             fill: $dot-note-color;
             font-weight: bold;
             font-family: 'Open Sans', Arial, Helvetica, sans-serif;;
         }
+        &.active .dot-note {
+            visibility: visible;
+        }
+    }
+}
+
+@media print {
+    svg.chart .dot-container .dot-note {
+        visibility: visible;
     }
 }
 </style>
