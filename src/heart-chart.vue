@@ -1,12 +1,55 @@
 <template>
-  <div class="container">
-      <svg class="chart container" :width="fullWidth" :height="fullHeight">
-          <g class="zoomer" :transform="`translate(${fullWidth - 100}, ${margin.top})`"></g>
-          <g class="main">
-              <g class="zoomable-view"></g>
-          </g>
-      </svg>
-  </div>
+<div class="container">
+    <svg class="chart container" :width="fullWidth" :height="fullHeight">
+        <g class="zoomer" :transform="`translate(${fullWidth - 100}, ${margin.top})`">
+              <line class="zoomer-line" x1="0" x2="100" y1="0" y2="0"></line>
+              <circle class="zoomer-cursor"></circle>
+        </g>
+        <g class="main" :transform="`translate(${margin.left}, ${margin.top})`"
+              :width="softWidth" :height="softHeight">
+            <g class="zoomable-view">
+                <!-- <g class="time axis" :transform="`translate(0, ${softHeight})`"></g> -->
+                <time-axis class="time axis"
+                    :transform="`translate(0, ${softHeight})`"
+                    :tick-values="timeTickValues"
+                    :scale="timeScale">
+                </time-axis>
+                <text class="x-axis-text main"
+                    :font-size="settings.xAxisMainFontSize"
+                    :x="softWidth + settings.xAxisMainTextDistance"
+                    :y="softHeight">时间
+                </text>
+                <text class="x-axis-text second"
+                    :font-size="settings.xAxisMainFontSize * 0.6"
+                    :x="softWidth + settings.xAxisMainTextDistance"
+                    :y="softHeight + settings.xAxisMainFontSize">（分钟）
+                </text>
+                <g class="course-unit-indicator"
+                    :transform="`translate(0, ${softHeight + 20})`">
+                    <g v-for="(unit, index) in course.units" class="unit">
+                        <line class="area-line"
+                            :x1="timeScale(unit.start)"
+                            :x2="timeScale(unit.end)"
+                            :y1="settings.unitIndicatorHeight/2"
+                            :y2="settings.unitIndicatorHeight/2">
+                        </line>
+                        <boxed-text class="unit-name"
+                            :x="timeScale((unit.start+unit.end)/2)"
+                            :y="settings.unitIndicatorHeight/2">
+                            {{unit.name}}
+                        </boxed-text>
+                        <path class="sep-line"
+                            :d="genUnitSepLineCmd({unit: unit})">
+                        </path>
+                        <path class="sep-line" v-if="index == (course.units.length - 1)"
+                            :d="genUnitSepLineCmd({unit: unit, side: 'right'})">
+                        </path>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </svg>
+</div>
 </template>
 
 <script>
@@ -23,11 +66,25 @@ import {scaleLinear as d3ScaleLinear} from 'd3-scale';
 import {axisLeft as d3AxisLeft, axisBottom as d3AxisBottom} from 'd3-axis';
 import {line as d3Line} from 'd3-shape';
 import {drag as d3Drag} from 'd3-drag';
+import boxedText from 'components/boxed-text.vue';
+import timeAxis from 'components/time-axis.vue';
 
 export default {
+    components: {
+        'boxed-text': boxedText,
+        'time-axis': timeAxis,
+    },
     data() {
         return {
-            fullWidth: 800,
+            settings: {
+                xAxisMainFontSize: 16,
+                xAxisMainTextDistance: 36,
+                yAxisMainFontSize: 16,
+                yAxisMainTextDistance: 20,
+                unitIndicatorHeight: 40,
+                dotNoteFontSize: 14,
+            },
+            fullWidth: 700,
             fullHeight: 360,
             margin: {
                 top: 40,
@@ -63,25 +120,44 @@ export default {
         },
         softHeight() {
             return this.fullHeight - this.margin.top - this.margin.bottom;
-        }
+        },
+        timeScale() {
+            return d3ScaleLinear().domain([0, max(this.timeSeries) + 10])
+                .range([0, this.softWidth]);
+        },
+        intensityScale() {
+            return d3ScaleLinear()
+                .domain([0, max(this.intensitySeries) + 1])
+                .range([this.softHeight, 0]);
+        },
+        timeTickValues() {
+            return set(merge([
+                this.timeSeries,
+            ])).values();
+        },
     },
     watch: {
         course() {
-            this.digestData();
-            Vue.nextTick(() => {
-                this.draw();
-            });
+            Vue.nextTick(() => this.draw());
+        },
+        transformOptions: {
+            deep: true,
+            handler: function () {
+                Vue.nextTick(() => this.draw());
+            }
         }
     },
     created() {
-        // this.course = require('./course-test-data.json');
-        this.$http.get(`http://demo.91jianke.com:1082/api/v2.0/activity-design/cardiograph/585b8c3857dccb66705f0bed`)
-            .then(resp => {
-                this.course = resp.body.data;
-            });
+        var course = require('./course-test-data.json');
+        // this.$http.get(`http://demo.91jianke.com:1082/api/v2.0/activity-design/cardiograph/585b8c3857dccb66705f0bed`)
+        //     .then(resp => {
+        //         this.course = resp.body.data;
+        //     });
+        this.digestData(course);
+        this.course = course;
     },
     methods: {
-        digestData() {
+        digestData(course) {
             console.info('Digesting data');
             this.activities = [];
             this.timeSeries = [];
@@ -89,7 +165,7 @@ export default {
             this.lineDots = [];
 
             var durationCnt = 0;
-            this.course.units.forEach(unit => {
+            course.units.forEach(unit => {
                 unit.start = durationCnt;
                 unit.activities.forEach(activity => {
                     activity.start = durationCnt;
@@ -105,27 +181,18 @@ export default {
             this.timeSeries.push(durationCnt);
             this.intensitySeries.push(0);
         },
+        genUnitSepLineCmd({unit, side='left'}) {
+            var line = d3Line();
+            var x = (side == 'left' ? unit.start : unit.end);
+            return line([
+                [this.timeScale(x), 0],
+                [this.timeScale(x), this.settings.unitIndicatorHeight],
+            ]);
+        },
         draw() {
-            const xAxisMainFontSize = 16;
-            const xAxisMainTextDistance = 36;
-
-            const yAxisMainFontSize = 16;
-            const yAxisMainTextDistance = 20;
-
-            const unitIndicatorHeight = 40;
-
-            const dotNoteFontSize = 14;
-
             // Drawing svg container
             var container = d3Select(this.$el).select('svg.chart.container');
             var zoomer = container.select('.zoomer');
-            zoomer.append('svg:line')
-                .attrs({
-                    class: 'zoomer-line',
-                    x1: 0,
-                    x2: 100,
-                    y1: 0, y2: 0,
-                });
             var drag = d3Drag()
                 .on('drag', function() {
                     this.x = (this.x || 0) + d3Event.dx;
@@ -134,108 +201,12 @@ export default {
                         return `translate(${this.x}, ${this.y})`;
                     });
                 });
-            zoomer.append('svg:circle')
-                .attrs({
-                    class: 'zoomer-cursor'
-                }).call(drag);
+            zoomer.select('.zoomer-cursor').call(drag);
 
-            var main = container.select('.main')
-                .attr('transform', `translate(${this.margin.left}, ${this.margin.top})`)
-                .attr('class', 'main')
-                .attr('width', this.softWidth)
-                .attr('height', this.softHeight);
+            var main = container.select('.main');
             var gZoomable = main.select('g.zoomable-view');
 
-            var timeScale = d3ScaleLinear()
-                .domain([0, max(this.timeSeries) + 10])
-                .range([0, this.softWidth]);
-            var timeAxis = d3AxisBottom(timeScale);
-            var tickValues = set(merge([
-                this.timeSeries,
-                // range(this.activities[0].start, this.activities.slice(-1)[0].end + 0.001, 10)
-            ])).values();
-            timeAxis.tickValues(tickValues);
-            timeAxis.tickFormat((d) => tickValues.indexOf(d) >= 0?
-                                        d : '');
-
-            var intensityScale = d3ScaleLinear()
-                .domain([0, max(this.intensitySeries) + 1])
-                .range([this.softHeight, 0]);
-
-            var intensityAxis = d3AxisLeft(intensityScale);
-
-            // Drawing X axis
-            gZoomable.append('svg:g')
-                .attr('transform', `translate(0, ${this.softHeight})`)
-                .attr('class', 'time axis')
-                .call(timeAxis);
-            gZoomable.append('svg:text')
-                .attr('class', 'x-axis-text main')
-                .attr('x', this.softWidth + xAxisMainTextDistance)
-                .attr('y', this.softHeight)
-                .attr('font-size', xAxisMainFontSize)
-                .text('时间');
-            gZoomable.append('svg:text')
-                .attr('class', 'x-axis-text second')
-                .attr('x', this.softWidth + xAxisMainTextDistance)
-                .attr('y', this.softHeight + xAxisMainFontSize)
-                .attr('font-size', xAxisMainFontSize * 0.6)
-                .text('（分钟）');
-
-            // Drawing course unit indicator
-            var gUnitIndicator = gZoomable.append('svg:g')
-                .attr('class', 'course-unit-indicator')
-                .attr('transform', `translate(0, ${this.softHeight + 20})`);
-            var gUnitSection = gUnitIndicator
-                .selectAll('unit')
-                .data(this.course.units)
-                .enter()
-                .append('svg:g').attr('class', 'unit');
-            gUnitSection.append('svg:line')
-                .attrs({
-                    class: 'area-line',
-                    x1: d => timeScale(d.start),
-                    y1: unitIndicatorHeight/2,
-                    x2: d => timeScale(d.end),
-                    y2: unitIndicatorHeight/2,
-                });
-            var unitNameBBoxes = [];
-            var gUnitNameText = gUnitSection.append('svg:text')
-                .attr('class', 'unit-name')
-                .attr('x', d => timeScale((d.start + d.end)/2))
-                .attr('y', unitIndicatorHeight/2)
-                .text(d => `${d.name}`)
-                .each(function() {
-                    unitNameBBoxes.push(this.getBBox());
-                });
-            gUnitSection.insert('svg:rect', 'text')
-                .attr('class', 'unit-name-border-box')
-                .attr('x', (d, i) => unitNameBBoxes[i].x - 2)
-                .attr('y', (d, i) => unitNameBBoxes[i].y)
-                .attr('width', (d, i) => unitNameBBoxes[i].width + 4)
-                .attr('height', (d, i) => unitNameBBoxes[i].height);
-
-            var unitSepLine = d3Line();
-            gUnitSection.append('svg:path')
-                .attr('class', 'sep-line')
-                .attr('d', (d) => {
-                    return unitSepLine([
-                        [timeScale(d.start), 0],
-                        [timeScale(d.start), unitIndicatorHeight]
-                    ]);
-                });
-            gUnitSection
-                .filter((d, i) => {
-                    return i == this.course.units.length - 1;
-                })
-                .append('svg:path')
-                .attr('class', 'sep-line')
-                .attr('d', (d) => {
-                    return unitSepLine([
-                        [timeScale(d.end), 0],
-                        [timeScale(d.end), unitIndicatorHeight]
-                    ]);
-                });
+            var intensityAxis = d3AxisLeft(this.intensityScale);
 
             // Drawing Y axis
             main.append('svg:g')
@@ -244,17 +215,17 @@ export default {
             main.append('svg:text')
                 .attr('class', 'y-axis-text')
                 .attr('x', 0)
-                .attr('y', -yAxisMainTextDistance)
-                .attr('font-size', yAxisMainFontSize)
+                .attr('y', -this.settings.yAxisMainTextDistance)
+                .attr('font-size', this.settings.yAxisMainFontSize)
                 .text('刺激度');
 
             // Drawing data line
             var line = d3Line()
                 .x((d) => {
-                    return timeScale(d);
+                    return this.timeScale(d);
                 })
                 .y((d, i) => {
-                    return intensityScale(this.intensitySeries[i]);
+                    return this.intensityScale(this.intensitySeries[i]);
                 });
             gZoomable.append('svg:path')
                 // .transition()
@@ -278,7 +249,7 @@ export default {
             // Dots selectable
             trackArea.on('click', () => {
                 var clickX = d3Mouse(trackArea.node())[0];
-                var xValues = this.lineDots.map(d => timeScale(d[0]));
+                var xValues = this.lineDots.map(d => this.timeScale(d[0]));
                 var deltas = xValues.map(d => {
                     return Math.abs(clickX - d);
                 });
@@ -298,7 +269,7 @@ export default {
                 .enter()
                 .append('svg:g')
                 .attr('transform', (d) => {
-                    return `translate(${timeScale(d[0])}, ${intensityScale(d[1])})`;
+                    return `translate(${this.timeScale(d[0])}, ${this.intensityScale(d[1])})`;
                 })
                 .attr('class', 'dot-container')
                 .classed('active', (d, i) => {
@@ -309,7 +280,7 @@ export default {
                 .attr('class', 'line-dot')
             gDots.append('svg:text')
                 .attr('class', 'dot-note')
-                .attr('font-size', dotNoteFontSize)
+                .attr('font-size', this.settings.dotNoteFontSize)
                 .attr('x', 0)    // Maybe we need moving left slightly!
                 .attr('y', -5)
                 .text((d, i) => {
@@ -358,11 +329,6 @@ svg.chart {
             text-anchor: middle;
             fill: $mark-text-color;
             font-size: 14px;
-        }
-        & .unit-name-border-box {
-            /*stroke: #CCC;*/
-            fill: #FFF;
-            fill-opacity: 1;
         }
         & .sep-line {
             stroke: $mark-line-color;
