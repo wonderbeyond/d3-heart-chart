@@ -9,21 +9,33 @@
 </template>
 
 <script>
+import Vue from 'vue';
 import {
     select as d3Select,
 } from 'd3-selection';
 import 'd3-selection-multi';
 
 export default {
-    props: ['x', 'y', 'width', 'height'],
+    props: ['x', 'y'],
     data() {
         return {
             bbox: {x: 0, y: 0, width: 0, height: 0}
         };
     },
+    created() {
+        ['x', 'y'].forEach(attr => {
+            this.$watch(attr, () => Vue.nextTick(this.updateBBox));
+        })
+    },
     mounted() {
-        var $c = d3Select(this.$el);
-        this.bbox = $c.select('text').node().getBBox();
+        this.updateBBox();
+    },
+    methods: {
+        updateBBox() {
+            var $t = d3Select(this.$el).select('text');
+            console.log('updating bbox of', $t, $t.node().getBBox())
+            this.bbox = $t.node().getBBox();
+        }
     },
 };
 </script>
