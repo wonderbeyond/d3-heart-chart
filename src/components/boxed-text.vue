@@ -33,7 +33,6 @@ export default {
     methods: {
         updateBBox() {
             var $t = d3Select(this.$el).select('text');
-            console.log('updating bbox of', $t, $t.node().getBBox())
             this.bbox = $t.node().getBBox();
         }
     },

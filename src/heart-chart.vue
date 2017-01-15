@@ -5,7 +5,8 @@
               <circle class="zoomer-end" cx="0" cy="0" r="2"></circle>
               <circle class="zoomer-end" :cx="settings.zoomerWidth" cy="0" r="2"></circle>
               <line class="zoomer-line" x1="0" :x2="settings.zoomerWidth" y1="0" y2="0"></line>
-              <circle class="zoomer-cursor"></circle>
+              <text class="hint" :x="zoomerCursorOffset" y="-12">{{transformOptions.zoomRate|formatRate}}</text>
+              <circle class="zoomer-cursor" :transform="`translate(${zoomerCursorOffset}, 0)`"></circle>
         </g>
         <g class="main" :transform="`translate(${margin.left}, ${margin.top})`"
               :width="softWidth" :height="softHeight">
@@ -75,6 +76,7 @@
 <script>
 import Vue from 'vue';
 import {min, max, merge, range} from 'd3-array';
+import {last} from 'utils/array';
 import {set} from 'd3-collection';
 import {
     select as d3Select,
@@ -126,16 +128,27 @@ export default {
             intensitySeries: [],
             clickXOnDataLine: null,
 
-            transformOptions: {
-                zoomRate: 1,
-                showTickStart: 0,
-            },
+            zoomerCursorOffset: 1,
         };
     },
     computed: {
         chartContainer() {
             return d3Select(this.$el).select('svg.chart.container');
         },
+        transformOptions() {
+            var rate = this.course.units.length / (this.settings.zoomerWidth / this.zoomerCursorOffset);
+            if (rate < 1) {
+                rate = 1;
+            }
+            if (rate > this.course.units.length) {
+                rate = this.course.units.length;
+            }
+            return {
+                showTickStart: 0,
+                zoomRate: rate,
+            }
+        },
+
         maxIntensity() {
             return max(this.intensitySeries);
         },
@@ -149,7 +162,7 @@ export default {
             return this.fullHeight - this.margin.top - this.margin.bottom;
         },
         timeScale() {
-            return d3ScaleLinear().domain([0, max(this.timeSeries) + 10])
+            return d3ScaleLinear().domain([min(this.timeSeries), max(this.timeSeries) + 10])
                 .range([0, this.softWidth]);
         },
         intensityScale() {
@@ -188,7 +201,7 @@ export default {
         transformOptions: {
             deep: true,
             handler: function () {
-                this.digestData();
+                this.transformData();
             }
         }
     },
@@ -198,37 +211,51 @@ export default {
         //     .then(resp => {
         //         this.course = resp.body.data;
         //     });
-        this.course = course;
-        this.digestData();
+        this.course = this.digestData(course);
+        this.transformData();
     },
     mounted() {
         var zoomer = this.chartContainer.select('.zoomer');
         var vm = this;
         var drag = d3Drag()
             .on('drag', function() {
-                this.x = (this.x || 0) + d3Event.dx;
-                console.log('drag x', this.x)
-                if (this.x < 0) this.x = 0;
-                if (this.x > vm.settings.zoomerWidth) this.x = vm.settings.zoomerWidth;
-                this.y = (this.y || 0);
-                d3Select(this).attr('transform', function(){
-                    return `translate(${this.x}, ${this.y})`;
-                });
+                vm.zoomerCursorOffset = (vm.zoomerCursorOffset || 1) + d3Event.dx;
+                if (vm.zoomerCursorOffset < 1) {
+                    vm.zoomerCursorOffset = 1;
+                }
+                if (vm.zoomerCursorOffset > vm.settings.zoomerWidth) {
+                    vm.zoomerCursorOffset = vm.settings.zoomerWidth;
+                }
             });
         zoomer.select('.zoomer-cursor').call(drag);
 
         var main = this.chartContainer.select('.main');
-        console.log('M:', main)
 
         var trackArea = main.select('.track-area');
         trackArea.on('click', () => {
             this.clickXOnDataLine = d3Mouse(trackArea.node())[0];
-            console.log('C:', this.clickXOnDataLine)
         });
     },
+    filters: {
+        formatRate(rate) {
+            return Number(rate * 100).toFixed(0) + '%';
+        }
+    },
     methods: {
-        digestData() {
-            console.info('Digesting data');
+        digestData(course) {
+            var durationCnt = 0;
+            course.units.forEach(unit => {
+                unit.start = durationCnt;
+                unit.activities.forEach(activity => {
+                    activity.start = durationCnt;
+                    durationCnt += activity.duration;
+                    activity.end = durationCnt;
+                    unit.end = durationCnt;
+                });
+            });
+            return course;
+        },
+        transformData() {
             var tranOpts = this.transformOptions;
             var sts = tranOpts.showTickStart;
             var stc = this.course.units.length / tranOpts.zoomRate;
@@ -237,22 +264,17 @@ export default {
             this.timeSeries = [];
             this.intensitySeries = [];
 
-            var durationCnt = 0;
-
             this.units.forEach(unit => {
-                unit.start = durationCnt;
                 unit.activities.forEach(activity => {
-                    activity.start = durationCnt;
                     this.activities.push(activity);
-                    durationCnt += activity.duration;
-                    activity.end = durationCnt;
-                    unit.end = durationCnt;
                     this.timeSeries.push(activity.start, activity.end);
                     this.intensitySeries.push(activity.intensity, activity.intensity);
                 });
             });
-            this.timeSeries.push(durationCnt);
-            this.intensitySeries.push(0);
+            if (last(this.units).id == last(this.course.units).id) {
+                this.timeSeries.push(last(this.units).end);
+                this.intensitySeries.push(0);
+            }
         },
         genUnitSepLineCmd({unit, side='left'}) {
             var line = d3Line();
@@ -288,6 +310,9 @@ svg.chart {
             cursor: pointer;
             r: 10;
             fill: #333;
+        }
+        & .hint {
+            text-anchor: middle;
         }
     }
     & .x-axis-text,

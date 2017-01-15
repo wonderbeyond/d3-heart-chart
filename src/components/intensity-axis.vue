@@ -19,7 +19,6 @@ export default {
     props: ['scale'],
     methods: {
         draw() {
-            console.log('Drawing Y');
             var Axis = d3AxisLeft(this.scale);
             Axis.tickFormat((d) => d % 2 == 0 ? d : '');
             d3Select(this.$el).call(Axis);
