@@ -76,7 +76,7 @@
 <script>
 import Vue from 'vue';
 import {min, max, merge, range} from 'd3-array';
-import {last} from 'utils/array';
+import {last, closest} from 'utils/array';
 import {set} from 'd3-collection';
 import {
     select as d3Select,
@@ -135,17 +135,30 @@ export default {
         chartContainer() {
             return d3Select(this.$el).select('svg.chart.container');
         },
+        allowedZoomRates() {
+            var len = this.course.units.length;
+            return range(1, len + 1).reverse().map(v => len/v);
+        },
         transformOptions() {
-            var rate = this.course.units.length / (this.settings.zoomerWidth / this.zoomerCursorOffset);
-            if (rate < 1) {
-                rate = 1;
+            // var rate = (this.zoomerCursorOffset/this.settings.zoomerWidth)*this.course.units.length
+            // if (rate < 1) {
+            //     rate = 1;
+            // }
+            // if (rate > this.course.units.length) {
+            //     rate = this.course.units.length;
+            // }
+
+            var allowCnts = range(1, this.course.units.length + 1).reverse();
+            var showCntIdx = Math.floor(this.zoomerCursorOffset/(this.settings.zoomerWidth/this.course.units.length));
+            if (showCntIdx < 0) {
+                showCntIdx = 0;
+            } else if (showCntIdx > allowCnts.length - 1) {
+                showCntIdx = allowCnts.length - 1;
             }
-            if (rate > this.course.units.length) {
-                rate = this.course.units.length;
-            }
+            var showCnt = allowCnts[showCntIdx];
             return {
                 showTickStart: 0,
-                zoomRate: rate,
+                zoomRate: this.course.units.length / showCnt,
             }
         },
 
@@ -207,12 +220,14 @@ export default {
     },
     created() {
         var course = require('./course-test-data.json');
-        // this.$http.get(`http://demo.91jianke.com:1082/api/v2.0/activity-design/cardiograph/585b8c3857dccb66705f0bed`)
-        //     .then(resp => {
-        //         this.course = resp.body.data;
-        //     });
         this.course = this.digestData(course);
         this.transformData();
+
+        if(0)this.$http.get(`http://demo.91jianke.com:1082/api/v2.0/activity-design/cardiograph/585b8c3857dccb66705f0bed`)
+            .then(resp => {
+                this.course = this.digestData(resp.body.data);
+                this.transformData();
+            });
     },
     mounted() {
         var zoomer = this.chartContainer.select('.zoomer');
