@@ -14,7 +14,7 @@ var config = {
     output: {
         path: path.resolve('dist'),
         filename: PRODUCTION ? '[name]-[chunkhash].js' : '[name].js',
-        publicPath: PRODUCTION ? '/assets/' : '/',
+        publicPath: PRODUCTION ? 'https://wonderbeyond.github.io/d3-heart-chart/dist/' : '/',
     },
     module: {
         rules: [{
