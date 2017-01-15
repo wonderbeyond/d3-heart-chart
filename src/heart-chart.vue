@@ -49,7 +49,7 @@
                     </g>
                 </g>
                 <path class="data-line" :d="dataLineCmd"></path>
-                <g class="track-area" style="pointer-events:all;">
+                <g class="track-area" :class="{dragging: draggingChart}" style="pointer-events:all;">
                     <rect class="invisible-rectangle-as-placeholder" style="visibility:hidden"
                         x="0" y="0" :width="softWidth" :height="softHeight">
                     </rect>
@@ -129,6 +129,9 @@ export default {
             clickXOnDataLine: null,
 
             zoomerCursorOffset: 1,
+            draggingChart: false,
+            draggingChartDistance: 0,
+            firstVisibleTickIndex: 0,
         };
     },
     computed: {
@@ -157,7 +160,6 @@ export default {
             }
             var showCnt = allowCnts[showCntIdx];
             return {
-                showTickStart: 0,
                 zoomRate: this.course.units.length / showCnt,
             }
         },
@@ -211,12 +213,12 @@ export default {
         },
     },
     watch: {
-        transformOptions: {
-            deep: true,
-            handler: function () {
-                this.transformData();
-            }
-        }
+        transformOptions() {
+            this.transformData();
+        },
+        firstVisibleTickIndex() {
+            this.transformData();
+        },
     },
     created() {
         var course = require('./course-test-data.json');
@@ -232,8 +234,8 @@ export default {
     mounted() {
         var zoomer = this.chartContainer.select('.zoomer');
         var vm = this;
-        var drag = d3Drag()
-            .on('drag', function() {
+        zoomer.select('.zoomer-cursor').call(d3Drag()
+            .on('drag', () => {
                 vm.zoomerCursorOffset = (vm.zoomerCursorOffset || 1) + d3Event.dx;
                 if (vm.zoomerCursorOffset < 1) {
                     vm.zoomerCursorOffset = 1;
@@ -241,8 +243,7 @@ export default {
                 if (vm.zoomerCursorOffset > vm.settings.zoomerWidth) {
                     vm.zoomerCursorOffset = vm.settings.zoomerWidth;
                 }
-            });
-        zoomer.select('.zoomer-cursor').call(drag);
+            }));
 
         var main = this.chartContainer.select('.main');
 
@@ -250,6 +251,28 @@ export default {
         trackArea.on('click', () => {
             this.clickXOnDataLine = d3Mouse(trackArea.node())[0];
         });
+
+        trackArea.call(d3Drag()
+            .on('start', () => {
+                this.draggingChart = true;
+                this.draggingChartDistance = 0;
+            })
+            .on('drag', () => {
+                this.draggingChartDistance += d3Event.dx;
+            })
+            .on('end', () => {
+                this.draggingChart = false;
+                if (Math.abs(this.draggingChartDistance) > 10) {
+                    var idx = this.firstVisibleTickIndex + (this.draggingChartDistance > 10 ? -1 : 1);
+                    if (idx < 0) {
+                        this.firstVisibleTickIndex = 0;
+                    } else if (idx > this.course.units.length - 1) {
+                        this.firstVisibleTickIndex = this.course.units.length - 1;
+                    } else {
+                        this.firstVisibleTickIndex = idx;
+                    }
+                }
+            }));
     },
     filters: {
         formatRate(rate) {
@@ -272,7 +295,7 @@ export default {
         },
         transformData() {
             var tranOpts = this.transformOptions;
-            var sts = tranOpts.showTickStart;
+            var sts = this.firstVisibleTickIndex;
             var stc = this.course.units.length / tranOpts.zoomRate;
             this.units = this.course.units.slice(sts, sts + stc);
             this.activities = [];
@@ -353,6 +376,9 @@ svg.chart {
     }
     & .track-area {
         cursor: crosshair;
+        &.dragging {
+            cursor: move;
+        }
     }
     & .data-line {
         stroke: $primary-color;
