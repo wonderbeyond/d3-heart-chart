@@ -36,6 +36,7 @@
                             :y2="settings.unitIndicatorHeight/2">
                         </line>
                         <boxed-text class="unit-name"
+                            :x-transform="`rotate(45 ${timeScale((unit.start+unit.end)/2)} ${settings.unitIndicatorHeight/2})`"
                             :x="timeScale((unit.start+unit.end)/2)"
                             :y="settings.unitIndicatorHeight/2">
                             {{unit.name}}
@@ -68,6 +69,7 @@
                 </g>
             </g>
             <intensity-axis class="intensity axis" :scale="intensityScale"></intensity-axis>
+            <text class="y-axis-text" x="0" :y="-settings.yAxisMainTextDistance" font-size="yAxisMainFontSize">刺激度</text>
         </g>
     </svg>
 </div>

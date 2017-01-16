@@ -2,7 +2,7 @@
     "name": "神马入门",
     "units": [{
         "id": 1,
-        "name": "ABC单元",
+        "name": "ABC单元LongLongLongLong",
         "activities": [{
             "id": 1,
             "name": "A活动",

@@ -1,6 +1,6 @@
 <template>
 <g>
-    <rect class="unit-name-border-box"
+    <rect class="text-border-box"
         :x="bbox.x -2" :y="bbox.y"
         :width="bbox.width + 4" :height="bbox.height">
     </rect>
@@ -40,8 +40,7 @@ export default {
 </script>
 
 <style>
-.unit-name-border-box {
-    stroke: #CCC;
+.text-border-box {
     fill: #FFF;
     fill-opacity: 1;
 }
